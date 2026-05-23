@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import allQuestionsData from "@/data/questions.json";
 import { getSectionConfig, getTopicLabel } from "@/lib/practice";
 import { supabase } from "@/lib/supabase";
@@ -42,6 +43,7 @@ export default function TopicPage({
 }: {
   params: { section: string; topic: string };
 }) {
+  const { userId } = useAuth();
   const { section, topic } = params;
 
   const sectionConfig = getSectionConfig(section);
@@ -60,20 +62,60 @@ export default function TopicPage({
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerKey>>({});
+  const [pendingAnswers, setPendingAnswers] = useState<Record<string, AnswerKey>>({});
 
   function toggle(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  async function handleAnswer(q: Question, answer: AnswerKey) {
+  function handleAnswer(q: Question, answer: AnswerKey) {
     if (answers[q.id]) return;
+    setPendingAnswers((prev) => ({ ...prev, [q.id]: answer }));
+  }
+
+  async function handleSubmit(q: Question) {
+    const answer = pendingAnswers[q.id];
+    if (!answer || answers[q.id]) return;
     const isCorrect = answer === q.correct_answer;
     setAnswers((prev) => ({ ...prev, [q.id]: answer }));
+
+    const today = new Date().toISOString().split("T")[0];
+
     await supabase.from("attempts").insert({
       question_id: q.id,
       selected_answer: answer,
       is_correct: isCorrect,
     });
+
+    await supabase.from("daily_completions").insert({
+      user_id: userId,
+      completed_date: today,
+      questions_answered: 1,
+    });
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("streak, last_active")
+      .eq("user_id", userId)
+      .single();
+
+    if (prof && prof.last_active !== today) {
+      const lastActive: string | null = prof.last_active ?? null;
+      let newStreak: number;
+      if (!lastActive) {
+        newStreak = 1;
+      } else {
+        const diffDays = Math.round(
+          (new Date(today).getTime() - new Date(lastActive).getTime()) / 86_400_000
+        );
+        if (diffDays === 1) newStreak = (prof.streak ?? 0) + 1;
+        else newStreak = 1;
+      }
+      await supabase
+        .from("profiles")
+        .update({ streak: newStreak, last_active: today })
+        .eq("user_id", userId);
+    }
   }
 
   const answeredCount = Object.keys(answers).length;
@@ -138,6 +180,7 @@ export default function TopicPage({
         <div className="space-y-3">
           {questions.map((q, index) => {
             const selected = answers[q.id] ?? null;
+            const pending = pendingAnswers[q.id] ?? null;
             const isExpanded = expandedId === q.id;
             const isAnswered = selected !== null;
             const isCorrect = selected === q.correct_answer;
@@ -230,8 +273,13 @@ export default function TopicPage({
                           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold";
 
                         if (!isAnswered) {
-                          rowStyle += " border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50";
-                          badgeStyle += " border-gray-300 text-gray-500";
+                          if (option === pending) {
+                            rowStyle += " border-blue-400 bg-blue-50 text-blue-900";
+                            badgeStyle += " border-blue-500 bg-blue-500 text-white";
+                          } else {
+                            rowStyle += " border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50";
+                            badgeStyle += " border-gray-300 text-gray-500";
+                          }
                         } else if (option === q.correct_answer) {
                           rowStyle += " border-green-400 bg-green-50 text-green-900";
                           badgeStyle += " border-green-500 bg-green-500 text-white";
@@ -258,6 +306,16 @@ export default function TopicPage({
                         );
                       })}
                     </div>
+
+                    {/* Submit */}
+                    {!isAnswered && pending && (
+                      <button
+                        onClick={() => handleSubmit(q)}
+                        className={`mt-3 w-full rounded-lg ${accentBg} px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90`}
+                      >
+                        Submit Answer
+                      </button>
+                    )}
 
                     {/* Explanation */}
                     {isAnswered && (

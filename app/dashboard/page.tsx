@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import Heatmap from "@/components/Heatmap";
 
 interface Profile {
   xp: number;
@@ -119,6 +120,9 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-2xl text-white">→</span>
               </Link>
+
+              {/* Activity heatmap */}
+              <Heatmap />
 
               {/* Weak subjects */}
               {profile.weak_subjects.length > 0 && (

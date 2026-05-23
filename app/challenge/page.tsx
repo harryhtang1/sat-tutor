@@ -56,6 +56,7 @@ export default function ChallengePage() {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState(0);
   const [xpEarned, setXpEarned] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!isLoaded || !userId) return;
@@ -89,24 +90,61 @@ export default function ChallengePage() {
     init();
   }, [isLoaded, userId]);
 
-  async function handleAnswer(answer: AnswerKey) {
-    if (selectedAnswer !== null) return;
+  function handleAnswer(answer: AnswerKey) {
+    if (submitted) return;
     setSelectedAnswer(answer);
+  }
 
+  async function handleSubmit() {
+    if (selectedAnswer === null || submitted) return;
+    if (!userId) { console.warn("handleSubmit: userId is null, aborting"); return; }
     const current = questions[currentIndex];
-    const isCorrect = answer === current.correct_answer;
-
+    const isCorrect = selectedAnswer === current.correct_answer;
+    setSubmitted(true);
     setResults((prev) => [
       ...prev,
-      { question_id: current.id, selected_answer: answer, is_correct: isCorrect },
+      { question_id: current.id, selected_answer: selectedAnswer, is_correct: isCorrect },
     ]);
+    const today = new Date().toISOString().split("T")[0];
 
     await supabase.from("attempts").insert({
       question_id: current.id,
-      selected_answer: answer,
+      selected_answer: selectedAnswer,
       is_correct: isCorrect,
       user_id: userId,
     });
+
+    console.log("Saving daily completion for user:", userId, "date:", today);
+    const { error: dcError } = await supabase.from("daily_completions").insert({
+      user_id: userId,
+      completed_date: today,
+      questions_answered: 1,
+    });
+    console.log("daily_completions result:", dcError);
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("streak, last_active")
+      .eq("user_id", userId)
+      .single();
+
+    if (prof && prof.last_active !== today) {
+      const lastActive: string | null = prof.last_active ?? null;
+      let newStreak: number;
+      if (!lastActive) {
+        newStreak = 1;
+      } else {
+        const diffDays = Math.round(
+          (new Date(today).getTime() - new Date(lastActive).getTime()) / 86_400_000
+        );
+        if (diffDays === 1) newStreak = (prof.streak ?? 0) + 1;
+        else newStreak = 1;
+      }
+      await supabase
+        .from("profiles")
+        .update({ streak: newStreak, last_active: today })
+        .eq("user_id", userId);
+    }
   }
 
   async function handleNext() {
@@ -135,6 +173,7 @@ export default function ChallengePage() {
     } else {
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
+      setSubmitted(false);
     }
   }
 
@@ -185,12 +224,15 @@ export default function ChallengePage() {
   // ── Quiz ─────────────────────────────────────────────────────────────────
   const current = questions[currentIndex];
   const total = questions.length;
-  const answered = selectedAnswer !== null;
-  const isCorrect = selectedAnswer === current.correct_answer;
+  const selected = selectedAnswer !== null;
+  const isCorrect = submitted && selectedAnswer === current.correct_answer;
 
   function optionClass(option: AnswerKey): string {
     const base = "flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors";
-    if (!answered) return `${base} border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 cursor-pointer`;
+    if (!submitted) {
+      if (option === selectedAnswer) return `${base} border-blue-400 bg-blue-50 text-blue-900 cursor-pointer`;
+      return `${base} border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 cursor-pointer`;
+    }
     if (option === current.correct_answer) return `${base} border-green-400 bg-green-50 text-green-900`;
     if (option === selectedAnswer) return `${base} border-red-300 bg-red-50 text-red-900`;
     return `${base} border-gray-100 bg-white text-gray-400`;
@@ -198,7 +240,10 @@ export default function ChallengePage() {
 
   function badgeClass(option: AnswerKey): string {
     const base = "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold";
-    if (!answered) return `${base} border-gray-300 text-gray-500`;
+    if (!submitted) {
+      if (option === selectedAnswer) return `${base} border-blue-500 bg-blue-500 text-white`;
+      return `${base} border-gray-300 text-gray-500`;
+    }
     if (option === current.correct_answer) return `${base} border-green-500 bg-green-500 text-white`;
     if (option === selectedAnswer) return `${base} border-red-400 bg-red-400 text-white`;
     return `${base} border-gray-200 text-gray-400`;
@@ -232,7 +277,7 @@ export default function ChallengePage() {
               <button
                 key={option}
                 onClick={() => handleAnswer(option)}
-                disabled={answered}
+                disabled={submitted}
                 className={optionClass(option)}
               >
                 <span className={badgeClass(option)}>{LABEL[option]}</span>
@@ -241,7 +286,16 @@ export default function ChallengePage() {
             ))}
           </div>
 
-          {answered && (
+          {selected && !submitted && (
+            <button
+              onClick={handleSubmit}
+              className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              Submit Answer
+            </button>
+          )}
+
+          {submitted && (
             <div
               className={`mt-5 rounded-xl border p-4 ${
                 isCorrect ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
@@ -254,7 +308,7 @@ export default function ChallengePage() {
             </div>
           )}
 
-          {answered && (
+          {submitted && (
             <button
               onClick={handleNext}
               className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
