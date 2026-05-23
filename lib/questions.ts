@@ -4,6 +4,7 @@ export interface Question {
   id: string;
   subject: string;
   topic: string;
+  slug: string;
   difficulty: "easy" | "medium" | "hard";
   question: string;
   option_a: string;
@@ -16,6 +17,10 @@ export interface Question {
 
 export function getQuestions(): Question[] {
   return questionsData as Question[];
+}
+
+export function getQuestionsBySlug(slug: string): Question[] {
+  return getQuestions().filter((q) => q.slug === slug);
 }
 
 export function getQuestionsBySubjects(subjects: string[]): Question[] {

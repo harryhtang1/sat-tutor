@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { supabase } from "@/lib/supabase";
 import allQuestionsData from "@/data/questions.json";
 
@@ -45,6 +46,8 @@ function getOptionText(q: Question, option: AnswerKey): string {
 }
 
 export default function ChallengePage() {
+  const { userId, isLoaded } = useAuth();
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<AnswerKey | null>(null);
@@ -55,12 +58,13 @@ export default function ChallengePage() {
   const [xpEarned, setXpEarned] = useState(0);
 
   useEffect(() => {
+    if (!isLoaded || !userId) return;
+
     async function init() {
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, weak_subjects")
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .eq("user_id", userId)
         .single();
 
       if (profile?.id) setProfileId(profile.id);
@@ -73,7 +77,6 @@ export default function ChallengePage() {
           ? all.filter((q) => weakSubjects.includes(q.subject))
           : all;
 
-      // If the pool is too small, pad with remaining questions
       const padded =
         pool.length >= 10
           ? pool
@@ -84,7 +87,7 @@ export default function ChallengePage() {
     }
 
     init();
-  }, []);
+  }, [isLoaded, userId]);
 
   async function handleAnswer(answer: AnswerKey) {
     if (selectedAnswer !== null) return;
@@ -102,6 +105,7 @@ export default function ChallengePage() {
       question_id: current.id,
       selected_answer: answer,
       is_correct: isCorrect,
+      user_id: userId,
     });
   }
 
@@ -109,7 +113,6 @@ export default function ChallengePage() {
     const isLast = currentIndex + 1 >= questions.length;
 
     if (isLast) {
-      // results state already has this question's result (set in handleAnswer before this click)
       const correctCount = results.filter((r) => r.is_correct).length;
       const xp = correctCount * XP_PER_CORRECT;
       setFinalScore(correctCount);
@@ -207,12 +210,8 @@ export default function ChallengePage() {
         {/* Progress bar */}
         <div className="mb-6">
           <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>
-              Question {currentIndex + 1} of {total}
-            </span>
-            <span>
-              {current.subject} · {current.topic}
-            </span>
+            <span>Question {currentIndex + 1} of {total}</span>
+            <span>{current.subject} · {current.topic}</span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
             <div
@@ -228,7 +227,6 @@ export default function ChallengePage() {
             {current.question}
           </p>
 
-          {/* Answer buttons */}
           <div className="mt-5 space-y-2.5">
             {OPTIONS.map((option) => (
               <button
@@ -243,27 +241,19 @@ export default function ChallengePage() {
             ))}
           </div>
 
-          {/* Explanation */}
           {answered && (
             <div
               className={`mt-5 rounded-xl border p-4 ${
-                isCorrect
-                  ? "border-green-200 bg-green-50"
-                  : "border-red-200 bg-red-50"
+                isCorrect ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
               }`}
             >
-              <p
-                className={`text-xs font-semibold uppercase tracking-wide ${
-                  isCorrect ? "text-green-700" : "text-red-600"
-                }`}
-              >
+              <p className={`text-xs font-semibold uppercase tracking-wide ${isCorrect ? "text-green-700" : "text-red-600"}`}>
                 {isCorrect ? "Correct!" : "Incorrect"}
               </p>
               <p className="mt-1 text-sm text-gray-700">{current.explanation}</p>
             </div>
           )}
 
-          {/* Next / Results button */}
           {answered && (
             <button
               onClick={handleNext}

@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { supabase } from "@/lib/supabase";
 
 const SUBJECTS = ["Math", "Reading", "Writing"] as const;
 type Subject = (typeof SUBJECTS)[number];
 
-type Status = "idle" | "loading" | "success" | "error";
+type Status = "idle" | "loading" | "error";
 
 export default function OnboardingPage() {
+  const { userId, isLoaded } = useAuth();
+  const router = useRouter();
+
   const [testDate, setTestDate] = useState("");
   const [weakSubjects, setWeakSubjects] = useState<Subject[]>([]);
   const [status, setStatus] = useState<Status>("idle");
@@ -24,34 +29,33 @@ export default function OnboardingPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!userId) return;
+    console.log("onboarding submit — userId:", userId);
+
     setStatus("loading");
     setErrorMsg("");
 
-    const { error } = await supabase.from("profiles").insert({
-      test_date: testDate,
-      weak_subjects: weakSubjects,
-    });
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        test_date: testDate,
+        weak_subjects: weakSubjects,
+      },
+      { onConflict: "user_id" }
+    );
 
     if (error) {
       setStatus("error");
       setErrorMsg(error.message);
     } else {
-      setStatus("success");
+      router.push("/dashboard");
     }
   }
 
-  if (status === "success") {
+  if (!isLoaded || !userId) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-8">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-            <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">All set!</h1>
-          <p className="mt-2 text-gray-500">Your profile has been saved.</p>
-        </div>
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm text-gray-400">Loading…</p>
       </main>
     );
   }
