@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { supabase } from "@/lib/supabase";
 
-const SUBJECTS = ["Math", "Reading", "Writing"] as const;
+const SUBJECTS = ["Math", "Reading & Writing"] as const;
 type Subject = (typeof SUBJECTS)[number];
 
 type Status = "idle" | "loading" | "error";
@@ -14,10 +14,19 @@ export default function OnboardingPage() {
   const { userId, isLoaded } = useAuth();
   const router = useRouter();
 
+  const [username, setUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
   const [testDate, setTestDate] = useState("");
   const [weakSubjects, setWeakSubjects] = useState<Subject[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  function validateUsername(value: string): string {
+    if (value.length < 3) return "At least 3 characters required";
+    if (value.length > 20) return "Maximum 20 characters";
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) return "Letters, numbers and underscores only";
+    return "";
+  }
 
   function toggleSubject(subject: Subject) {
     setWeakSubjects((prev) =>
@@ -30,7 +39,9 @@ export default function OnboardingPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId) return;
-    console.log("onboarding submit — userId:", userId);
+
+    const uErr = validateUsername(username);
+    if (uErr) { setUsernameError(uErr); return; }
 
     setStatus("loading");
     setErrorMsg("");
@@ -38,6 +49,7 @@ export default function OnboardingPage() {
     const { error } = await supabase.from("profiles").upsert(
       {
         user_id: userId,
+        display_name: username.trim(),
         test_date: testDate,
         weak_subjects: weakSubjects,
       },
@@ -72,6 +84,35 @@ export default function OnboardingPage() {
         </p>
 
         <div className="mt-8 space-y-6">
+          {/* Username */}
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+              Choose a username
+            </label>
+            <input
+              id="username"
+              type="text"
+              required
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                if (usernameError) setUsernameError(validateUsername(e.target.value));
+              }}
+              onBlur={() => setUsernameError(validateUsername(username))}
+              placeholder="e.g. alex_studies"
+              className={`mt-1.5 block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 ${
+                usernameError
+                  ? "border-red-300 focus:border-red-400 focus:ring-red-400"
+                  : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              }`}
+            />
+            {usernameError ? (
+              <p className="mt-1 text-xs text-red-500">{usernameError}</p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400">3–20 characters · letters, numbers, underscores</p>
+            )}
+          </div>
+
           {/* Test date */}
           <div>
             <label

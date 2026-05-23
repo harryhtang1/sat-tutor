@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { supabase } from "@/lib/supabase";
 
 const FEATURES = [
   {
@@ -31,7 +33,19 @@ const FEATURES = [
 ];
 
 export default function Home() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn || !userId) { setHasProfile(null); return; }
+    supabase
+      .from("profiles")
+      .select("user_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .then(({ count }) => setHasProfile((count ?? 0) > 0));
+  }, [isSignedIn, userId]);
+
+  const signedInHref = hasProfile === false ? "/onboarding" : "/dashboard";
 
   return (
     <main className="min-h-screen bg-white">
@@ -67,10 +81,10 @@ export default function Home() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             {isSignedIn ? (
               <Link
-                href="/dashboard"
+                href={signedInHref}
                 className="rounded-xl bg-white px-7 py-3 text-sm font-bold text-blue-600 shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-900/25 active:scale-95"
               >
-                Go to Dashboard →
+                {hasProfile === false ? "Complete Setup →" : "Go to Dashboard →"}
               </Link>
             ) : (
               <>

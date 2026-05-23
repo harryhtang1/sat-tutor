@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ClerkProvider>
+        <ClerkProvider afterSignUpUrl="/onboarding" afterSignInUrl="/dashboard">
           <Navbar />
           {children}
         </ClerkProvider>

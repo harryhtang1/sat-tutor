@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/practice", label: "Practice" },
   { href: "/learn", label: "Learn" },
   { href: "/challenge", label: "Challenge" },
+  { href: "/leaderboard", label: "Leaderboard" },
 ];
 
 export default function Navbar() {
