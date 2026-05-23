@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
 import { supabase } from "@/lib/supabase";
 
 interface Profile {
@@ -65,14 +64,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Nav */}
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
-        <Link href="/" className="text-sm font-bold text-gray-900">
-          ScoreUp
-        </Link>
-        <UserButton afterSignOutUrl="/" />
-      </header>
-
       <main className="px-4 py-10">
         <div className="mx-auto max-w-xl space-y-6">
           {loading ? (
