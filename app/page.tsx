@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
+import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 const FEATURES = [
   {
@@ -29,6 +31,8 @@ const FEATURES = [
 ];
 
 export default function Home() {
+  const { isSignedIn } = useAuth();
+
   return (
     <main className="min-h-screen bg-white">
 
@@ -41,11 +45,11 @@ export default function Home() {
         />
 
         {/* Signed-in nav chip */}
-        <Show when="signed-in">
+        {isSignedIn && (
           <div className="absolute right-6 top-6">
             <UserButton afterSignOutUrl="/" />
           </div>
-        </Show>
+        )}
 
         <div className="relative mx-auto max-w-2xl">
           <span className="inline-block rounded-full bg-white/20 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-blue-100 ring-1 ring-white/30">
@@ -61,29 +65,27 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            {/* Signed-out: sign-in + get-started */}
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button className="rounded-xl bg-white/15 px-7 py-3 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur-sm transition-all hover:bg-white/25 active:scale-95">
-                  Sign In
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button className="rounded-xl bg-white px-7 py-3 text-sm font-bold text-blue-600 shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-900/25 active:scale-95">
-                  Get Started →
-                </button>
-              </SignUpButton>
-            </Show>
-
-            {/* Signed-in: go to dashboard */}
-            <Show when="signed-in">
+            {isSignedIn ? (
               <Link
                 href="/dashboard"
                 className="rounded-xl bg-white px-7 py-3 text-sm font-bold text-blue-600 shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-900/25 active:scale-95"
               >
                 Go to Dashboard →
               </Link>
-            </Show>
+            ) : (
+              <>
+                <SignInButton mode="modal">
+                  <button className="rounded-xl bg-white/15 px-7 py-3 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur-sm transition-all hover:bg-white/25 active:scale-95">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="rounded-xl bg-white px-7 py-3 text-sm font-bold text-blue-600 shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-900/25 active:scale-95">
+                    Get Started →
+                  </button>
+                </SignUpButton>
+              </>
+            )}
           </div>
         </div>
       </section>
