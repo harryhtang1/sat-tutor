@@ -36,6 +36,24 @@ function greeting(): string {
   return "Good evening";
 }
 
+const LEVELS = [
+  { number: 1, name: "Beginner",  min: 0 },
+  { number: 2, name: "Learner",   min: 100 },
+  { number: 3, name: "Scholar",   min: 300 },
+  { number: 4, name: "Advanced",  min: 600 },
+  { number: 5, name: "Expert",    min: 1000 },
+  { number: 6, name: "Master",    min: 1500 },
+];
+
+function getLevel(xp: number) {
+  let level = LEVELS[0];
+  for (const l of LEVELS) {
+    if (xp >= l.min) level = l;
+    else break;
+  }
+  return level;
+}
+
 export default function DashboardPage() {
   const { userId } = useAuth();
   const router = useRouter();
@@ -43,6 +61,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [editingDate, setEditingDate] = useState(false);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
+  const [showXpDetail, setShowXpDetail] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -93,6 +112,11 @@ export default function DashboardPage() {
   const days = profile?.test_date ? daysUntil(profile.test_date) : null;
   const available = profile ? ALL_SUBJECTS.filter((s) => !profile.weak_subjects.includes(s)) : [];
   const todayIso = new Date().toISOString().split("T")[0];
+  const level = getLevel(profile?.xp ?? 0);
+  const nextLevel = level.number < LEVELS.length ? LEVELS[level.number] : null;
+  const progressPct = nextLevel
+    ? Math.round(((profile?.xp ?? 0) - level.min) / (nextLevel.min - level.min) * 100)
+    : 100;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -123,47 +147,91 @@ export default function DashboardPage() {
               </div>
 
               {/* Stat cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <StatCard emoji="⚡" label="Total XP" value={profile.xp.toLocaleString()} />
-                <StatCard emoji="🔥" label="Streak" value={`${profile.streak}d`} />
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard emoji="🔥" label="Streak" value={`${profile.streak}d`} />
 
-                {/* Days left — click to edit test date */}
-                <div
-                  onClick={() => !editingDate && setEditingDate(true)}
-                  className={`flex flex-col items-center rounded-2xl bg-white p-4 text-center ring-1 ring-gray-100 transition-all ${
-                    !editingDate ? "cursor-pointer hover:ring-blue-200" : ""
-                  }`}
-                >
-                  <span className="text-xl">📅</span>
-                  {editingDate ? (
-                    <input
-                      type="date"
-                      autoFocus
-                      defaultValue={profile.test_date ?? ""}
-                      min={todayIso}
-                      onChange={(e) => e.target.value && updateTestDate(e.target.value)}
-                      onBlur={() => setEditingDate(false)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-1.5 w-full rounded border border-blue-300 px-1 py-0.5 text-center text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    />
-                  ) : (
-                    <>
-                      <p className="mt-1.5 text-xl font-bold text-gray-900">
-                        {days !== null ? String(days) : "—"}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {days === 0
-                          ? "Today!"
-                          : days === 1
-                          ? "tomorrow"
-                          : days !== null
-                          ? "until test"
-                          : "tap to set"}
-                      </p>
-                    </>
-                  )}
-                  <p className="mt-0.5 text-xs text-gray-400">Days left</p>
+                  {/* Days left — click to edit test date */}
+                  <div
+                    onClick={() => !editingDate && setEditingDate(true)}
+                    className={`flex flex-col items-center rounded-2xl bg-white p-4 text-center ring-1 ring-gray-100 transition-all ${
+                      !editingDate ? "cursor-pointer hover:ring-blue-200" : ""
+                    }`}
+                  >
+                    <span className="text-xl">📅</span>
+                    {editingDate ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        defaultValue={profile.test_date ?? ""}
+                        min={todayIso}
+                        onChange={(e) => e.target.value && updateTestDate(e.target.value)}
+                        onBlur={() => setEditingDate(false)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1.5 w-full rounded border border-blue-300 px-1 py-0.5 text-center text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    ) : (
+                      <>
+                        <p className="mt-1.5 text-xl font-bold text-gray-900">
+                          {days !== null ? String(days) : "—"}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {days === 0
+                            ? "Today!"
+                            : days === 1
+                            ? "tomorrow"
+                            : days !== null
+                            ? "until test"
+                            : "tap to set"}
+                        </p>
+                      </>
+                    )}
+                    <p className="mt-0.5 text-xs text-gray-400">Days left</p>
+                  </div>
+
+                  {/* XP card — click to expand level detail */}
+                  <div
+                    onClick={() => setShowXpDetail((v) => !v)}
+                    className="flex flex-col items-center rounded-2xl bg-white p-4 text-center ring-1 ring-gray-100 transition-all cursor-pointer hover:ring-blue-200"
+                  >
+                    <span className="text-xl">⚡</span>
+                    <div className="mt-1.5 flex items-baseline gap-1">
+                      <p className="text-xl font-bold text-gray-900">{profile.xp.toLocaleString()}</p>
+                      <span className="rounded bg-blue-100 px-1 py-0.5 text-[10px] font-bold text-blue-600">
+                        Lv.{level.number}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-400">Total XP</p>
+                  </div>
                 </div>
+
+                {/* XP detail expand */}
+                {showXpDetail && (
+                  <div className="rounded-2xl bg-white p-4 ring-1 ring-blue-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-800">
+                        Level {level.number} — {level.name}
+                      </p>
+                      {nextLevel && (
+                        <p className="text-xs text-gray-400">Next: {nextLevel.name}</p>
+                      )}
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500 transition-all"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>{Math.floor(profile.xp / 10).toLocaleString()} correct answers × 10 XP</span>
+                      {nextLevel ? (
+                        <span>{(nextLevel.min - profile.xp).toLocaleString()} XP until Level {nextLevel.number}</span>
+                      ) : (
+                        <span>Max level reached</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* CTA */}
